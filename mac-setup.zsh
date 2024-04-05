@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # This is mac-setup.zsh from template https://github.com/wilsonmar/mac-setup/blob/main/mac-setup.zsh
 # Coding of this shell script is explained in https://wilsonmar.github.io/mac-setup
-# Coding of shell scripting is explained in https://wilsonmar.github.io/shell-scripts
+# Shell scripting techniques are explained in https://wilsonmar.github.io/shell-scripts
 
 # shellcheck does not work on zsh, but 
 # shellcheck disable=SC2001 # See if you can use ${variable//search/replace} instead.
@@ -19,7 +19,11 @@
 ### 01. Capture time stamps to later calculate how long the script runs, no matter how it ends:
 # See https://wilsonmar.github.io/mac-setup/#StartingTimes
 THIS_PROGRAM="$0"
-SCRIPT_VERSION="v0.90"  # Add exa
+SCRIPT_VERSION="v0.100" # ls -ltaT Remove Apple app without IFS in mac-setup.zsh"
+# TODO: Remove circleci from this script.
+# TODO: Add test for duplicate run using flock https://www.baeldung.com/linux/bash-ensure-instance-running
+# TODO: Add encryption of log output.
+
 LOG_DATETIME=$( date +%Y-%m-%dT%H:%M:%S%z)-$((1 + RANDOM % 1000))
 # clear  # screen (but not history)
 echo "=========================== ${LOG_DATETIME} ${THIS_PROGRAM} ${SCRIPT_VERSION}"
@@ -44,21 +48,22 @@ args_prompt() {
    echo "   -sd          -sd card initialize"
    echo " "
    echo "   -nenv        Do not run mac-setup.env file"
-   echo "   -env \"~/alt-mac-setup.env\"   (alternate env file)"
+   echo "   -env \"~/mac-setup.env\"   (change to alternate env file)"
    echo " "
    echo "   -N  \"Proj\"            Alternative name of Projects folder"
    echo "   -fn \"John Doe\"            user full name"
    echo "   -n  \"john-doe\"            GitHub account -name"
    echo "   -e  \"john_doe@gmail.com\"  GitHub user -email"
    echo " "
-   echo "   -circleci    Use CircleCI SaaS"
    echo "   -aws         -AWS cloud"
    echo "   -eks         -eks (Elastic Kubernetes Service) in AWS cloud"
+   #echo "   -azure       -Azure cloud"
+   #echo "   -gcp         -Google cloud"
    echo "   -g \"abcdef...89\" -gcloud API credentials for calls"
    echo "   -p \"cp100\"   -project in cloud"
    echo " "
-   echo "   -Consul       Install Hashicorp Consul in Docker"
-   echo "   -Doormat      install/use Hashicorp's doormat-cli & hcloud"
+#  echo "   -Consul       Install Hashicorp Consul in Docker"
+#  echo "   -Doormat      install/use Hashicorp's doormat-cli & hcloud"
    echo "   -Envoy        install/use Hashicorp's Envoy client"
    echo "   -HV           install/use -Hashicorp Vault secret manager"
    echo "   -m            Setup Vault SSH CA cert"
@@ -71,6 +76,9 @@ args_prompt() {
    echo "   -f \"a9y.py\"  -file (program) to run"
    echo "   -P \"-v -x\"   -Parameters controlling program called"
    echo "   -u           -update GitHub (scan for secrets)"
+   echo " "
+   echo "   -docsify      Install docsify locally"
+   #echo "   -circleci    Use CircleCI SaaS"
    echo " "
    echo "   -podman       Install and use Podman (instead of Docker)"
    echo "   -k            Install and use Docker"
@@ -102,6 +110,14 @@ args_prompt() {
    echo "   -K           -Keep OS processes running at end of run (instead of killing them automatically)"
    echo "   -D           -Delete containers and other files after run (to save disk space)"
    echo "   -M           remove Docker iMages pulled from DockerHub (to save disk space)"
+   echo "   -usage       usage commands"
+   echo "# USAGE EXAMPLES:"
+   echo "chmod +x mac-setup.zsh   # change permissions"
+   echo "# Using default configuration settings downloaed to \$HOME/mac-setup.env "
+   echo "./mac-setup.zsh -docsify -d -c -v"
+}  # args_prompt()
+
+usage_examples() {
    echo "# USAGE EXAMPLES:"
    echo "chmod +x mac-setup.zsh   # change permissions"
    echo "# Using default configuration settings downloaed to \$HOME/mac-setup.env "
@@ -126,7 +142,8 @@ args_prompt() {
    echo "./mac-setup.zsh -v -ruby -o  # Ruby app"   
    echo "./mac-setup.zsh -v -venv -c -circleci -s    # Use CircLeci based on secrets"
    echo "./mac-setup.zsh -v -s -eggplant -k -a -console -dc -K -D  # eggplant use docker-compose of selenium-hub images"
-}  # args_prompt()
+   echo "./mac-setup.zsh -v -docsify -d -c "
+} # usage_examples()
 
 # TODO: https://github.com/hashicorp/docker-consul/ to create a prod image from Dockerfile (for security)
 
@@ -188,6 +205,7 @@ fi
    RUN_DEBUG=false              # -vv
    RUN_PARMS=""                 # -P
    RUN_VERBOSE=false            # -v
+   RUN_QUIET=false              # -q
 
    CONVERT_TO_ZSH=false         # -zsh
    SET_TRACE=false              # -x
@@ -245,7 +263,8 @@ SECRETS_FILE=".secrets.env.sample"
 
    USE_ENVOY=false              # -Envoy
    USE_DOORMAT=false            # -Doormat
-   USE RUN_CONSUL=false         # -Consul
+   RUN_CONSUL=false             # -Consul
+   RUN_NOMAD=false              # -Nomad
    USE_VAULT=false              # -HV
        VAULT_HOST="localhost"  # default value
       #VAULT_ADDR="https://${VAULT_HOST}:8200"  # assembled in code below.
@@ -264,7 +283,6 @@ SECRETS_FILE=".secrets.env.sample"
    RUN_EKS=false                # -eks
        EKS_CRED_IS_LOCAL=true
    RUN_EGGPLANT=false           # -eggplant
-   RUN_QUIET=false              # -q
    RUN_TENSORFLOW=false         # -tsf
    RUN_TERRAFORM=false          # -tf
    RUN_WEBGOAT=false            # -W
@@ -283,7 +301,7 @@ SECRETS_FILE=".secrets.env.sample"
    #   AWS_OUTPUT_FORMAT="json"  # asked by aws configure CLI.
    # EKS_CLUSTER_FILE=""   # cluster.yaml instead
    USE_YUBIKEY=false            # -Y
-
+   USE_DOCSIFY=false            # -docsify
    USE_K8S=false                # -k8s
    USE_AZURE_CLOUD=false        # -z
    USE_GOOGLE_CLOUD=false       # -g
@@ -302,7 +320,7 @@ SECRETS_FILE=".secrets.env.sample"
    IMAGE_SD_CARD=false          # -sd
 
 # Pre-processing:
-   USE_QEMU                     # -qemu
+   USE_QEMU=false               # -qemu
    RESTART_DOCKER=false         # -r
    DOCKER_IMAGE_FILE=""  # custom specified
    DOCKER_PS_NAME="dev1"        # -dps
@@ -369,7 +387,7 @@ else  # use .mck-setup.env file:
       exit 9
    else  # Read from default file name mac-setup.env :
       h2 "Reading default config file $HOME/mac-setup.env ..."
-      note "$(ls -al "${CONFIG_FILEPATH}" )"
+      note "$(ls -ltaT "${CONFIG_FILEPATH}" )"
       chmod +x "${CONFIG_FILEPATH}"
       source   "${CONFIG_FILEPATH}"  # run file containing variable definitions.
       if [ ! -n "$GITHUB_ACCOUNT" ]; then
@@ -448,8 +466,18 @@ while test $# -gt 0; do
       export REMOVE_GITHUB_AFTER=true
       shift
       ;;
+    -d)
+      export DELETE_BEFORE=true
+      shift
+      ;;
     -dc)
       export USE_DOCKER_COMPOSE=true
+      shift
+      ;;
+    -docsify)
+      export USE_DOCSIFY=true
+      PROJECT_FOLDER_NAME="docsify"
+      GITHUB_REPO_URL="https://github.com/liatrio/devops-bootcamp.git"
       shift
       ;;
     -Doormat)
@@ -460,10 +488,6 @@ while test $# -gt 0; do
       shift
              DOCKER_PS_NAME=$( echo "$1" | sed -e 's/^[^=]*=//g' )
       export DOCKER_PS_NAME
-      shift
-      ;;
-    -d)
-      export DELETE_BEFORE=true
       shift
       ;;
     -D)
@@ -688,6 +712,10 @@ while test $# -gt 0; do
       export UPDATE_GITHUB=true
       shift
       ;;
+    -usage)
+      usage_examples  # local function
+      shift
+      ;;
     -U)
       export UPDATE_PKGS=true
       shift
@@ -755,7 +783,6 @@ if [ "${RUN_VERBOSE}" = true ]; then
    note "GITHUB_USER_NAME=" "${GITHUB_USER_NAME}"
    note "GITHUB_USER_ACCOUNT=" "${GITHUB_USER_ACCOUNT}"
    note "GITHUB_USER_EMAIL=" "${GITHUB_USER_EMAIL}"
-
    note "AWS_DEFAULT_REGION= " "${AWS_DEFAULT_REGION}"
 fi
 
@@ -863,7 +890,7 @@ fi
 # set -o nounset
 
 
-### 11a. Print run Operating environment information 
+### 11. Print run Operating environment information 
 note "Running $0 in $PWD"  # $0 = script being run in Present Wording Directory.
 note "Apple macOS sw_vers = $(sw_vers -productVersion) / uname -r = $(uname -r)"  # example: 10.15.1 / 21.4.0
 
@@ -873,7 +900,8 @@ HOSTNAME="$( hostname )"
    note "on hostname=$HOSTNAME "
 PUBLIC_IP=$( curl -s ifconfig.me )
 INTERNAL_IP=$( ipconfig getifaddr en0 )
-   note "at PUBLIC_IP=$PUBLIC_IP, internal $INTERNAL_IP"
+   # To protect privacy security, don't expose IP address for attackers to use:
+   # note "at PUBLIC_IP=$PUBLIC_IP, internal $INTERNAL_IP"
 
 if [ "$OS_TYPE" = "macOS" ]; then  # it's on a Mac:
    export MACHINE_TYPE="$(uname -m)"
@@ -892,7 +920,7 @@ if [ "$OS_TYPE" = "macOS" ]; then  # it's on a Mac:
 fi
 
 
-### 11b. Upgrade Bash to Zsh
+### 12. Upgrade Bash to Zsh
 # Apple Directory Services database Command Line utility:
 USER_SHELL_INFO="$( dscl . -read /Users/$USER UserShell )"
 if [ "${RUN_VERBOSE}" = true ]; then
@@ -927,8 +955,8 @@ if [ "${CONVERT_TO_ZSH}" = true ]; then
                              # Answer: "/usr/local/bin/zsh" if still running Bash.
 fi  # CONVERT_TO_ZSH
 
-### 12. Define utility functions: kill process by name, etc.
-### 12. Keep-alive: update existing `sudo` time stamp until `.osx` has finished
+### 13. Define utility functions: kill process by name, etc.
+### 13. Keep-alive: update existing `sudo` time stamp until `.osx` has finished
 # See https://wilsonmar.github.io/mac-setup/#KeepAlive
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
@@ -942,7 +970,7 @@ ps_kill(){  # $1=process name
 }
 
 
-### 13b. Install installers (brew, apt-get), depending on operating system
+### 14. Install installers (brew, apt-get), depending on operating system
 # See https://wilsonmar.github.io/mac-setup/#InstallInstallers
 
 # Bashism Internal Field Separator used by echo, read for word splitting to lines newline or tab (not spaces).
@@ -1108,7 +1136,7 @@ if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
 fi # if [ "${DOWNLOAD_INSTALL}"
 
 
-### 14. Install ShellCheck 
+### 15. Install ShellCheck 
 # See https://wilsonmar.github.io/mac-setup/#ShellCheck
 # CAUTION: shellcheck does not work on zsh files (only bash files)
 if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
@@ -1127,6 +1155,7 @@ if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
             # version: 0.7.0
             # license: GNU General Public License, version 3
             # website: https://www.zshellcheck.net
+
    fi  # PACKAGE_MANAGER
 fi  # DOWNLOAD_INSTALL
 
@@ -1136,44 +1165,118 @@ fi  # DOWNLOAD_INSTALL
 #fi
 
 
-### 15. Install basic utilities (git, jq, tree, etc.) used by many:
+### 16. Install basic utilities (git, jq, tree, etc.) used by many:
 # See https://wilsonmar.github.io/mac-setup/#BasicUtils
 if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
    # CAUTION: Install only packages that you actually use and trust!
 
-      h2 "Removing apps pre-installed by Apple, taking up space if they are not used:"
-
-      if [ -d "/Applications/iMovie.app" ]; then   # file NOT found:
-         rm -rf "/Applications/iMovie.app"
-      fi
-
-      if [ -d "/Applications/Keynote.app" ]; then   # file NOT found:
-         rm -rf "/Applications/Keynote.app"
-      fi
-
-      if [ -d "/Applications/Numbers.app" ]; then   # file NOT found:
-         rm -rf "/Applications/Numbers.app"
-      fi
-
-      if [ -d "/Applications/Pages.app" ]; then   # file NOT found:
-         rm -rf "/Applications/Pages.app"
-      fi
-
-      if [ -d "/Applications/GarageBand.app" ]; then   # file NOT found:
-         rm -rf "/Applications/Garage Band.app"
-      fi
-
-      # If you have Microsoft O365, download from https://www.office.com/?auth=2&home=1
-
-      h2 "Remaining apps installed by Apple App Store:"
-      find /Applications -path '*Contents/_MASReceipt/receipt' -maxdepth 4 -print |\sed 's#.app/Contents/_MASReceipt/receipt#.app#g; s#/Applications/##'
-
-      # Response: The Unarchiver.app, Pixelmator.app, 
-      # TextWrangler.app, WriteRoom.app,
-      # Texual.app, Twitter.app, Tweetdeck.app, Pocket.app, 
-
    if [ "${PACKAGE_MANAGER}" = "brew" ]; then
+  
+      ########## DOTHIS: remove apps you don't want removed: ##########
+      h2 "Remove apps pre-installed by Apple, taking up space if they are not used ..."
+      # set comma as internal field separator for the string list
+      Field_Separator=$IFS
+      IFS=,
  
+      if [ "${RUN_VERBOSE}" = true ]; then
+         h2 "Apps installed by Apple App Store ..."
+         find /Applications -path '*Contents/_MASReceipt/receipt' -maxdepth 4 -print |\sed 's#.app/Contents/_MASReceipt/receipt#.app#g; s#/Applications/##'
+      fi
+      # Excludes apps installed using Apple's App Store app: Amazon Prime Video, Textual, 
+         # 1Password, Flash Player, "Grammerly Desktop.app", "Google Chrome", github, Kindle Classic, 
+         # "Hidden Bar", "Home Assistant", HP Easy Scan, "Hotkey App",
+         # Speedtest, Strongbox, Telegram, Whatsapp Desktop
+         # Okta Verify, p4merge, TextEdit, XCode, zoom.us.app
+      # Response: "Lensa AI: photo editor, video", The Unarchiver.app, Pixelmator.app, "Save to Pocket", 
+          # TextWrangler.app, WriteRoom.app,
+          # Texual.app, Twitter.app, Tweetdeck.app, Pocket.app, 
+
+      h2 "Removing Apple-created apps installed from Apple Store into /Applications/ ..."
+      for appname in iMovie  GarageBand  Keynote  Numbers  Pages 
+      do
+         if [ -d "/Applications/$appname.app" ]; then   # file found:
+            h2 "/Applications/$appname.app being removed..."
+            sudo rm -rf "/Applications/$appname.app"  # remove app folder 
+            # Sudo and password needed to remove Numbers, Pages
+            # TODO: Remove iMovie and others using the built-in uninstaller.
+            # TODO: Also remove app data in "/Library/Application Support" and other folders
+         fi
+      done
+
+      h2 "Install/upgrade apps using brew --cask into /Applications/:"
+      for appname in DiffMerge  NordVPN  Postman  PowerShell 
+      do
+         h2 "Brew install --cask $appname within /Applications/ ..."
+         brew install --cask $appname
+         # Freeform.app not recognized
+      done
+      # For those with different brew names than app name:
+         # Anki flashcard player
+         # "GPG Keychain.app"
+         # Karabiner-Elements to "Karabiner-Elements.app"
+         # Karabiner-EventViewer to "Karabiner-EventViewer.app"
+             # https://www.youtube.com/watch?v=j4b_uQX3Vu0
+         # microsoft-edge to "Microsoft Edge.app"
+         # Microsoft Remote Desktop, 
+         # Microsoft Office, Microsoft PowerShell, Microsoft Teams, Microsoft Remote Desktop,
+         # sublime-text to "Sublime Text.app"
+      # Installed from vendor website: Keka, Adobe, Camtasia, DiffMerge, p4merge
+      if [ "${RUN_VERBOSE}" = true ]; then
+         h2 "Apps in /Applications ..."
+         ls -ltaT /Applications/
+            # drwxr-xr-x   3 wilsonmar  staff       96 Aug  7 19:32:02 2018 iTerm.app
+      fi
+
+
+      h2 "Install/upgrade apps using brew --cask into $HOME/Applications/:"
+      # HomeAppsBrewList within "$HOME/Applications/%1.app" 
+      #HomeAppsBrewList=' Atom, DiffMerge, Firefox, google-cloud-sdk, Hyper, Jumpcut, Keybase, Macvim, OBS, Sketch, VLC '
+      # Exceptions: google-cloud-sdk does not create a "Google Cloud SDK.app"
+         # See https://snark.github.io/jumpcut/ for more cut-and-paste.
+         # NOTE: # hyper install stores a file in /usr/local/bin on ARM machines.
+      # Not on my list but may be in yours: cakebrew, snowflake-snowsql, geekbench, spotify, 
+         # pycharm, textmate, 
+         # brave, opera, 
+      # No longer supported? the-unarchiver
+      # Installed separately: 1password (1Password7.app),
+         # Docker, licensed "VMWare Fusion", "VMWare Horizon Client", "VMWare Remote Console",
+      for appname in Atom Docker Firefox google-cloud-sdk Hyper Macvim OBS Sketch VLC
+      do
+         note "brew install --cask $appname into $HOME/Applications/ ..."
+         brew install --cask $appname
+      done
+      # Not specified: Jumpcut
+      # Exceptions:
+         # Keybase has error
+         # anaconda to "Anaconda-Navigator.app" and can contain security vulnerabilities!
+      # TODO: Install Chrome Add-ons
+      if [ "${RUN_VERBOSE}" = true ]; then
+         h2 "Apps in $HOME/Applications ..."
+         ls -ltaT $HOME/Applications/
+      fi
+
+
+      # For those with different brew names than app name:
+      for appname in miniconda microsoft-teams google-chrome elgato-stream-deck iterm2
+      do
+         note "brew install --cask $appname into $HOME/Applications/ ..."
+         brew install --cask $appname
+      done
+      # miniconda ( to '/usr/local/bin/conda') does not create a "Miniconda3.app"
+      # If you have Microsoft O365, download from https://www.office.com/?auth=2&home=1
+      #brew install --cask microsoft-teams  # to "Microsoft Teams.app"
+      #brew install --cask google-chrome  # to "Google Chrome.app"
+      #brew install --cask elgato-stream-deck  # does not create a "StreamDeck.app"
+      #brew install --cask github  # to "GitHub Desktop.app"
+      #brew install --cask iterm2  # to "iTerm.app"
+      # tor-browser to "Tor Browser.app"
+      #brew install --cask visual-studio-code  # to "Visual Studio Code.app"
+
+      if [ "${RUN_VERBOSE}" = true ]; then
+         h2 "brew list --cask ..."
+         brew list --cask
+      fi
+
       h2 "brew install CLI utilities:"
 
       brew install curl
@@ -1186,10 +1289,12 @@ if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
          # Pouring ncdu--2.1.2.arm64_monterey.bottle.tar.gz
          # /opt/homebrew/Cellar/ncdu/2.1.2: 6 files, 485.5KB
 
+      # Lint : hadolint Dockerfile
+      # brew install hadolint
+
      ### Unzip:
-     #brew install --cask keka
       brew install xz
-     #brew install --cask the-unarchiver
+      brew install p7zip
 
       brew install git
       note "$( git --version )"
@@ -1198,66 +1303,65 @@ if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
       #note "$( hub --version )"
          # git version 2.27.0
          # hub version 2.14.2
-      brew install --cask github
-      
-     #Crypto for Security:
-      brew install --cask 1password
-      if [ ! -d "/Applications/Keybase.app" ]; then   # file NOT found:
-         brew install --cask keybase
-      else
-         if [ "${UPDATE_PKGS}" = true ]; then
-            rm -rf "/Applications/Keybase.app"
-            brew upgrade --cask keybase
-         fi
-      fi
+  
      #https://www.hashicorp.com/blog/announcing-hashicorp-homebrew-tap referencing https://github.com/hashicorp/homebrew-tap
-      brew install hashicorp/tap/vault
-      which vault
+      if [ "${USE_VAULT}" = true ]; then   # -HV
+         brew install hashicorp/tap/vault
+         which vault
+      fi
+
+      if [ "${RUN_CONSUL}" = true ]; then  # -tf
+         brew install hashicorp/tap/consul
+         which consul   # /usr/local/bin/consul
+         brew install hashicorp/tap/envconsul
+         which envconsul
+      fi
+
+      if [ "${RUN_TERRAFORM}" = true ]; then  # -tf
+         h2 "brew install Terraform:"
+         which terraform
+            # /opt/homebrew/bin//terraform
+         terraform version
+            # Terraform v1.2.5
+            # on darwin_arm64
       
-      brew install hashicorp/tap/consul
-      which consul   # /usr/local/bin/consul
-      brew install hashicorp/tap/envconsul
-      which envconsul
+         brew install tfenv
+         # NO brew install hashicorp/tap/terraform
+         brew install tfenv
+         tfenv install latest
+         tfenv use 1.2.5
 
-      brew install hashicorp/tap/nomad
-     #brew install hashicorp/tap/packer
-      which nomad
+         brew install hashicorp/tap/sentinel
+         which sentinel
+      fi
 
-      brew install tfenv
-      # NO brew install hashicorp/tap/terraform
-      brew install tfenv
-      tfenv install latest
-      tfenv use 1.2.5
-      which terraform
-         # /opt/homebrew/bin//terraform
-      terraform version
-         # Terraform v1.2.5
-         # on darwin_arm64
-   
-      brew install hashicorp/tap/sentinel
-      which sentinel
-
-      brew install hashicorp/tap/consul-k8s
-      which consul-k8s
-      # https://learning.oreilly.com/library/view/consul-up-and/9781098106133/ch03.html
-      # minikube tunnel
-      # y  consul-k8s install -config-file values.yaml
-         #  --> Service does not have load balancer ingress IP address: consul/consul-ui
-      #  Cannot install Consul. A Consul cluster is already installed in namespace consul with name consul.
-        #Use the command `consul-k8s uninstall` to uninstall Consul from the cluster.
-      # consul status
-         #    NAME  | NAMESPACE |     STATUS      | CHART VERSION | APPVERSION | REVISION |      LAST UPDATED        
-         # ---------+-----------+-----------------+---------------+------------+----------+--------------------------
-           # consul | consul    | pending-install | 0.44.0        | 1.12.0     |        1 | 2022/06/05 17:47:57 MDT  
-          # ✓ Consul servers healthy (1/1)
-          # ✓ Consul clients healthy (1/1)
-     # kubectl get daemonset,statefulset,deployment -n consul
+      h2 "brew install kubernetes:"
+      brew install openshift-cli
+      if [ "${RUN_CONSUL}" = true ]; then  # -tf
+         brew install hashicorp/tap/consul-k8s
+         which consul-k8s
+         # https://learning.oreilly.com/library/view/consul-up-and/9781098106133/ch03.html
+         # minikube tunnel
+         # y  consul-k8s install -config-file values.yaml
+            #  --> Service does not have load balancer ingress IP address: consul/consul-ui
+         #  Cannot install Consul. A Consul cluster is already installed in namespace consul with name consul.
+         #Use the command `consul-k8s uninstall` to uninstall Consul from the cluster.
+         # consul status
+            #    NAME  | NAMESPACE |     STATUS      | CHART VERSION | APPVERSION | REVISION |      LAST UPDATED        
+            # ---------+-----------+-----------------+---------------+------------+----------+--------------------------
+            # consul | consul    | pending-install | 0.44.0        | 1.12.0     |        1 | 2022/06/05 17:47:57 MDT  
+            # ✓ Consul servers healthy (1/1)
+            # ✓ Consul clients healthy (1/1)
+         # kubectl get daemonset,statefulset,deployment -n consul
+      fi
      
-     # Terminal enhancements:
-      brew install --cask hyper
-         # hyper stores a file in /usr/local/bin on ARM machines.
+      if [ "${RUN_NOMAD}" = true ]; then  # -tf
+         brew install hashicorp/tap/nomad
+         #brew install hashicorp/tap/packer
+         which nomad
+      fi
 
-      brew install --cask iterm2   # for use by .oh-my-zsh
+      # brew install --cask iterm2   # for use by .oh-my-zsh
       # Path to your oh-my-zsh installation:
       # export ZSH="$HOME/.oh-my-zsh"
       #if [ ! -d "$ZSH" ]; then # install:
@@ -1282,88 +1386,12 @@ if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
 
       brew install tree
 
-     ### Browsers: see https://wilsonmar.github.io/browser-extensions
-      if [ ! -d "/Applications/Google Chrome.app" ]; then   # file NOT found:
-         brew install --cask google-chrome
-      else
-         if [ "${UPDATE_PKGS}" = true ]; then
-            # CAUTION: Chrome requires deletion for some reason:
-            # Password will be required here:
-            sudo rm -rf "/Applications/Google Chrome.app"
-            brew install --cask google-chrome
-         else
-            note "Google Chrome.app already installed."
-         fi
-      fi
-      # TODO: Install Chrome Add-ons
-
-     #brew install --cask brave
-      brew install --cask firefox
-      brew install --cask microsoft-edge
-      brew install --cask tor-browser
-     #brew install --cask opera
-
-     #See https://wilsonmar.github.io/text-editors
-      brew install --cask atom
-         # on use, atom stores files atom & apm in /usr/local/bin on ARM machines.
-
-     #brew install --cask electron
-        # Results in “is damaged and can’t be opened. You should move it to the Trash” Error by mac Gatekeeper.
-
-      brew install --cask visual-studio-code
-     #brew install --cask sublime-text
-     # Licensed Python IDE from ___:
-     #brew install --cask pycharm
-     #brew install --cask macvim
-      brew install neovim    # https://github.com/neovim/neovim
-
-     #brew install --cask anki
-      brew install --cask diffmerge  # https://sourcegear.com/diffmerge/
-     #brew install --cask geekbench
-
-     #Media editing:
-      brew install --cask sketch
-     #Open Broadcaster Software (for recording sound & video)
-      brew install --cask obs
-     #brew install --cask micro-video-converter
-     #brew install --cask vlc
-     #brew install --cash imageoptim
-
-     #Installs as zoom.us.app
-      brew install --cask zoom
-     #Can't if [ ! -d "/Applications/Slack.app" ]; then   # file NOT found:
-     #brew install --cask skype
-
-      brew install --cask kindle
-
-     #Software development tools:
-     # REST API editor (like Postman):
-     #brew install --cask postman
-     #brew install --cask insomnia
-     #brew install --cask sdkman      # for use with Java
-
-     # GUI Unicode .keylayout file editor for macOS at https://software.sil.org/ukelele/
-     # Precursor to https://keyman.com/
-     #brew install --cask ukelele     
-
    fi  # PACKAGE_MANAGER
-
-   if [ "${RUN_DEBUG}" = true ]; then  # -vv
-
-      h2 "Brew list ..."
-      brew list 
-      
-      h2 "brew list --cask"
-      brew list --cask
-
-      h2 "List /Applications"
-      ls /Applications
-   fi
 
 fi  # DOWNLOAD_INSTALL
 
 
-#### 16. Override defaults in Apple macOS System Preferences:"
+#### 17. Override defaults in Apple macOS System Preferences:"
 # See https://wilsonmar.github.io/mac-setup/#SysPrefs
 # See https://wilsonmar.github.io/dotfiles/
 
@@ -1378,6 +1406,7 @@ if [ "${SET_MACOS_SYSPREFS}" = true ]; then  # -macos
    fi
 
    # Explained in https://wilsonmar.github.io/dotfiles/#general-uiux
+
          # General Appearance: Dark
          defaults write AppleInterfaceStyle –string "Dark";
 
@@ -1446,13 +1475,20 @@ if [ "${SET_MACOS_SYSPREFS}" = true ]; then  # -macos
       # Tracking speed: maximum 5.0
       defaults write -g com.apple.mouse.scaling 5.0
 
-   # https://www.youtube.com/watch?v=8fFNVlpM-Tw
+   # See https://www.youtube.com/watch?v=8fFNVlpM-Tw
    # Changing the login screen image on Monterey.
+
+   # Show the ~/Library Folder https://weibeld.net/mac/setup-new-mac.html
+   chflags nohidden ~/Library
+
+    # Mute Startup Sound - just before logout, and restores the previous volume just after login. 
+   sudo defaults write com.apple.loginwindow LogoutHook "osascript -e 'set volume with output muted'"
+   sudo defaults write com.apple.loginwindow LoginHook "osascript -e 'set volume without output muted'"
 
 fi  # SET_MACOS_SYSPREFS
 
 
-### 17a. Hashicorp Cloud using Doormat
+### 18. Hashicorp Cloud using Doormat
 # Command-line interface for https://github.com/hetznercloud/cli
 
 if [ "${USE_DOORMAT}" = true ]; then  # -Doormat
@@ -1501,7 +1537,7 @@ if [ "${USE_DOORMAT}" = true ]; then  # -Doormat
 fi  # USE_DOORMAT
 
 
-### 17b. Hashicorp Consul using Envoy
+### 19. Hashicorp Consul using Envoy
 # https://learn.hashicorp.com/tutorials/consul/service-mesh-with-envoy-proxy
 if [ "${USE_ENVOY}" = true ]; then  # -Envoy
    if [ "${PACKAGE_MANAGER}" = "brew" ]; then
@@ -1534,7 +1570,7 @@ if [ "${USE_ENVOY}" = true ]; then  # -Envoy
 fi  # USE_ENVOY
 
 
-### 18. Image SD card 
+### 20. Image SD card 
 # See https://wilsonmar.github.io/mac-setup/#ImageSDCard
 # See https://wilsonmar.github.io/iot-raspberry-install/
 # To avoid selecting a hard drive and wiping it out,
@@ -1562,7 +1598,7 @@ if [ "${IMAGE_SD_CARD}" = true ]; then  # -sd
    if [ ! -f "$IMAGE_XZ_FILENAME" ]; then   # file NOT found, so download from github:
       error "Download of $IMAGE_XZ_FILENAME failed!"
    else
-      ls -al "${IMAGE_XZ_FILENAME}"
+      ls -ltaT "${IMAGE_XZ_FILENAME}"
       if [ ! -f "$IMAGE_FILENAME" ]; then   # file NOT found, so download from github:
          note "Decompressing ${IMAGE_XZ_FILENAME} using xz ..."
          xz "${IMAGE_XZ_FILENAME}"  # to "$IMAGE_FILENAME"
@@ -1573,7 +1609,7 @@ if [ "${IMAGE_SD_CARD}" = true ]; then  # -sd
       error "xz de-compress of $IMAGE_XZ_FILENAME to $IMAGE_FILENAME failed!"
    else
       note "Verify ${IMAGE_FILENAME} ..."
-      ls -al "${IMAGE_FILENAME}"
+      ls -ltaT "${IMAGE_FILENAME}"
       # TODO: Verify MD5?
    fi 
 
@@ -1596,7 +1632,7 @@ if [ "${IMAGE_SD_CARD}" = true ]; then  # -sd
 fi  # IMAGE_SD_CARD
 
 
-### 19. Configure project folder location where files are created by the run
+### 21. Configure project folder location where files are created by the run
 # See https://wilsonmar.github.io/mac-setup/#ProjFolder
 
 if [ -z "${PROJECTS_CONTAINER_PATH}" ]; then  # -p ""  override blank (the default)
@@ -1613,16 +1649,16 @@ else
 fi
 
 if [ "${RUN_DEBUG}" = true ]; then  # -vv
-   note "$( ls "${PROJECTS_CONTAINER_PATH}" )"
+   note "$( ls -ltaT "${PROJECTS_CONTAINER_PATH}" )"
 fi
 
 
-### 20. Obtain repository from GitHub
+### 22. Clone repository from GitHub
 # See https://wilsonmar.github.io/mac-setup/#ObtainRepo
 # To ensure that we have a project folder (from GitHub clone or not):
 if [ "${CLONE_GITHUB}" = true ]; then   # -clone specified:
 
-   note "*** GITHUB_REPO_URL=${GITHUB_REPO_URL}"
+   note "GITHUB_REPO_URL=${GITHUB_REPO_URL}"
    if [ -n "${GITHUB_REPO_URL}" ]; then   # variable is NOT blank
 
       Delete_GitHub_clone(){
@@ -1630,28 +1666,29 @@ if [ "${CLONE_GITHUB}" = true ]; then   # -clone specified:
       PROJECT_FOLDER_FULL_PATH="${PROJECTS_CONTAINER_PATH}/${PROJECT_FOLDER_NAME}"
       if [ -d "${PROJECT_FOLDER_FULL_PATH:?}" ]; then  # path available.
          h2 "Removing project folder $PROJECT_FOLDER_FULL_PATH ..."
-         ls -al "${PROJECT_FOLDER_FULL_PATH}"
+         lls -ltaT "${PROJECT_FOLDER_FULL_PATH}"
          rm -rf "${PROJECT_FOLDER_FULL_PATH}"
       fi
       }
       Clone_GitHub_repo(){
+         h2 "Cloning repo \"$GITHUB_REPO_URL\" into \"$PROJECT_FOLDER_NAME\" ..."
          git clone "${GITHUB_REPO_URL}" "${PROJECT_FOLDER_NAME}"
          cd "${PROJECT_FOLDER_NAME}"
          note "At $PWD"
       }
    fi
 
-   if [ -z "${PROJECT_FOLDER_NAME}" ]; then   # name not specified:
+   PROJECT_FOLDER_FULL_PATH="${PROJECTS_CONTAINER_PATH}/${PROJECT_FOLDER_NAME}"
+   if [ -z "${PROJECT_FOLDER_FULL_PATH}" ]; then   # name not specified:
       fatal "PROJECT_FOLDER_NAME not specified for git cloning ..."
       exit
-   fi 
-
-   PROJECT_FOLDER_FULL_PATH="${PROJECTS_CONTAINER_PATH}/${PROJECT_FOLDER_NAME}"
-   h2 "-clone requested for $GITHUB_REPO_URL in $PROJECT_FOLDER_NAME ..."
+   fi
    if [ -d "${PROJECT_FOLDER_FULL_PATH:?}" ]; then  # path available.
+      h2 "Remove folder \"$PROJECT_FOLDER_NAME\" from URL=$GITHUB_REPO_URL ..."
       rm -rf "$PROJECT_FOLDER_NAME" 
       Delete_GitHub_clone    # defined above in this file.
    fi
+   # folder should now be blank.
 
    Clone_GitHub_repo      # defined above in this file.
    # curl -s -O https://raw.GitHubusercontent.com/wilsonmar/build-a-saas-app-with-flask/master/mac-setup.zsh
@@ -1705,7 +1742,7 @@ fi   # GITHUB_REPO_URL
 
 
 
-### 21. Reveal secrets stored within .gitsecret folder 
+### 23. Reveal secrets stored within .gitsecret folder 
 # See https://wilsonmar.github.io/mac-setup/#UnencryptGitSecret
 # within repo from GitHub (after installing gnupg and git-secret)
 # See https://wilsonmar.github.io/mac-setup/#GitSecret
@@ -1773,7 +1810,7 @@ if false; then  # [ -d "$HOME/.gitsecret" ]; then   # found directory folder in 
 fi
 
 
-### 22. Pipenv and Pyenv to install Python and its modules
+### 24. Pipenv and Pyenv to install Python and its modules
 # See https://wilsonmar.github.io/mac-setup/#Pipenv
 pipenv_install() {
    # Pipenv is a dependency manager for Python projects like Node.js’ npm or Ruby’s bundler.
@@ -1833,7 +1870,7 @@ pipenv_install() {
 }  # pipenv_install()
 
 
-### 23. Connect to Google Cloud, if requested:
+### 25. Connect to Google Cloud, if requested:
 # See https://wilsonmar.github.io/mac-setup/#GCP
 if [ "${USE_GOOGLE_CLOUD}" = true ]; then   # -g
    # Perhaps in https://console.cloud.google.com/cloudshell  (use on Chromebooks with no Terminal)
@@ -2015,7 +2052,7 @@ if [ "${USE_GOOGLE_CLOUD}" = true ]; then   # -g
 fi  # USE_GOOGLE_CLOUD
 
 
-### 24. Connect to AWS
+### 27. Connect to AWS
 # See https://wilsonmar.github.io/mac-setup/#AWS
 if [ "${USE_AWS_CLOUD}" = true ]; then   # -aws
 
@@ -2127,7 +2164,7 @@ if [ "${USE_AWS_CLOUD}" = true ]; then   # -aws
 fi  # USE_AWS_CLOUD
 
 
-### 25. Install Azure
+### 28. Install Azure
 # See https://wilsonmar.github.io/mac-setup/#Azure
 if [ "${USE_AZURE_CLOUD}" = true ]; then   # -z
     # See https://docs.microsoft.com/en-us/cli/azure/keyvault/secret?view=azure-cli-latest
@@ -2137,7 +2174,7 @@ if [ "${USE_AZURE_CLOUD}" = true ]; then   # -z
 fi
 
 
-### 26. Install K8S minikube
+### 29. Install K8S minikube
 # See https://wilsonmar.github.io/mac-setup/#Minikube
 if [ "${USE_K8S}" = true ]; then  # -k8s
    h2 "-k8s means minkube locally ..."
@@ -2260,7 +2297,7 @@ if [ "${USE_K8S}" = true ]; then  # -k8s
 fi  # USE_K8S
 
 
-### 27. Install EKS using eksctl
+### 30. Install EKS using eksctl
 # See https://wilsonmar.github.io/mac-setup/#EKS
 if [ "${RUN_EKS}" = true ]; then  # -EKS
 
@@ -2470,8 +2507,71 @@ if [ "${RUN_EKS}" = true ]; then  # -EKS
 fi  # EKS
 
 
+### 31. Use Docsify to create a website from Markdown files
+# See https://wilsonmar.github.io/mac-setup/#Docsify
+if [ "${USE_DOCSIFY}" = true ]; then   # -docsify
+   # Video of run at https://drive.google.com/file/d/17-mV8Q_cyIKDj9aNm8wXXYHm6yuwITqi/view?usp=drive_link
+   # See https://docsify.js.org/#/quickstart
+   if [ "${DOWNLOAD_INSTALL}" = true ]; then  # -I
+      h2 "Installing Docsify to npm global folder ..."
+      npm i docsify-cli -g
+         # RESPONSE: added 205 packages in 10s
+   fi
+   
+   if [ "${DELETE_BEFORE}" = false ]; then  # NOT -d
+      # Based on https://stackoverflow.com/questions/16807876/how-to-check-if-another-instance-of-my-shell-script-is-running
+      for pid in $(pidof -x docsify); do  # in case of multiple instances:
+         if [ $pid != $$ ]; then
+            warning "docsify process is already running as PID $pid. Using it..."
+            if [ "${OPEN_APP}" = true ]; then   # -o
+               warning "Opening http://localhost:3000 ..."
+               open http://localhost:3000
+               break  # out of for loop
+            fi
+         fi
+      done
+   else  # -delete process before run:
+      for pid in $(pidof -x docsify); do
+         if [ $pid != $$ ]; then
+            warning "docsify process is already running as PID $pid, so killing it ..."
+            pidof -k docsify
+            break  # out of for loop
+         fi
+      done
+   fi  # DELETE_BEFORE
 
-### 29. Use CircleCI SaaS
+   if [ "${OPEN_APP}" = true ]; then   # -o
+      note "Opening http://localhost:3000 before starting server ..."
+      # because the Terminal window will be locked up by the server in the next command
+      open http://localhost:3000
+   fi
+   PROJECT_FOLDER_FULL_PATH="${PROJECTS_CONTAINER_PATH}/${PROJECT_FOLDER_NAME}"
+   cd "${PROJECT_FOLDER_FULL_PATH}"
+   if [ "${RUN_VERBOSE}" = true ]; then
+      note "At $(pwd)"
+      note "$( ls -ltaT )"
+
+      note "${PROJECT_FOLDER_FULL_PATH}/docs"
+      note "$( ls -ltaT docs )"
+   fi
+
+   h2 "npm install docsify ..."
+   npm install
+   
+   h2 "npm start docsify ..."
+   npm start
+
+   # Browser will refresh when the server starts?
+
+   if [ "${DELETE_CONTAINER_AFTER}" = true ]; then  # -D
+      note "Removing project folder \"${PROJECT_FOLDER_FULL_PATH}\" ..."
+      rm -rf "${PROJECT_FOLDER_FULL_PATH}"   
+   fi
+
+fi  # USE_DOCIFY
+
+
+### 32. Use CircleCI SaaS
 # See https://wilsonmar.github.io/mac-setup/#CircleCI
 if [ "${USE_CIRCLECI}" = true ]; then   # -L
    # https://circleci.com/docs/2.0/getting-started/#setting-up-circleci
@@ -2520,7 +2620,7 @@ if [ "${USE_CIRCLECI}" = true ]; then   # -L
    fi
 
    if [ ! -f "$HOME/.circleci/config.yml" ]; then 
-      ls -al "$HOME/.circleci/config.yml"
+      ls -ltaT "$HOME/.circleci/config.yml"
       fatal "$HOME/.circleci/config.yml not found. Aborting ..."
       exit 9
    fi
@@ -2539,7 +2639,7 @@ if [ "${USE_CIRCLECI}" = true ]; then   # -L
 fi  # USE_CIRCLECI
 
 
-### 30. Use Yubikey
+### 33. Use Yubikey
 # See https://wilsonmar.github.io/mac-setup/#Yubikey
 if [ "${USE_YUBIKEY}" = true ]; then   # -Y
       if [ "${PACKAGE_MANAGER}" = "brew" ]; then
@@ -2612,7 +2712,7 @@ if [ "${USE_YUBIKEY}" = true ]; then   # -Y
 fi  # USE_YUBIKEY
 
 
-#### 31. Use GitHub
+#### 34. Use GitHub
 # See https://wilsonmar.github.io/mac-setup/#UseGitHub
 if [ "${MOVE_SECURELY}" = true ]; then   # -m
    # See https://github.com/settings/keys 
@@ -2631,14 +2731,14 @@ if [ "${MOVE_SECURELY}" = true ]; then   # -m
 #      else 
 #         h2 "Using existing SSH key pair \"${LOCAL_SSH_KEYFILE}\" "
 #      fi
-      note "$( ls -al "${LOCAL_SSH_KEYFILE}" )"
+      note "$( ls -ltaT "${LOCAL_SSH_KEYFILE}" )"
    fi  # LOCAL_SSH_KEYFILE
 
 fi  # MOVE_SECURELY
 
 
 
-#### 32. Use Hashicorp Vault
+#### 35. Use Hashicorp Vault
 # See https://wilsonmar.github.io/mac-setup/#HashiVault
 export USE_ALWAYS=false  # DEBUGGING
 if [ USE_ALWAYS = true ]; then
@@ -2667,7 +2767,7 @@ if [ USE_ALWAYS = true ]; then
       else
          info "Using existing CA key file $VAULT_CA_KEY_FULLPATH ..."
       fi  # VAULT_CA_KEY_FULLPATH
-      note "$( ls -al "${VAULT_CA_KEY_FULLPATH}" )"
+      note "$( ls -ltaT "${VAULT_CA_KEY_FULLPATH}" )"
 
   else  # USE_VAULT = true
 
@@ -2687,7 +2787,7 @@ if [ USE_ALWAYS = true ]; then
          error "File ${SSH_CERT_PUB_KEYFILE} not found ..."
       else
          note "File ${SSH_CERT_PUB_KEYFILE} found ..."
-         note "$( ls -al ${SSH_CERT_PUB_KEYFILE} )"
+         note "$( ls -ltaT ${SSH_CERT_PUB_KEYFILE} )"
       fi
       # According to https://help.github.com/en/github/setting-up-and-managing-organizations-and-teams/about-ssh-certificate-authorities
       # To issue a certificate for someone who has different usernames for GitHub Enterprise Server and GitHub Enterprise Cloud, 
@@ -2724,7 +2824,7 @@ fi  # USE_ALWAYS, USE_VAULT
 
 
 
-### 33a. Install Hashicorp Vault
+### 36. Install Hashicorp Vault
 # See https://wilsonmar.github.io/hashicorp-vault
 # See https://wilsonmar.github.io/mac-setup/#UseHashiVault
 if [ "${USE_VAULT}" = true ]; then   # -HV
@@ -2738,7 +2838,6 @@ if [ "${USE_VAULT}" = true ]; then   # -HV
       if ! command -v vault >/dev/null; then  # command not found, so:
          note "Brew installing vault ..."
          brew install vault
-         zzzz
          # vault -autocomplete-install
          # exec $SHELL
       else  # installed already:
@@ -2979,7 +3078,7 @@ EOD
       pushd  "$HOME/.ssh"
       h2 "At temporary $PWD ..."
       if [ "${RUN_DEBUG}" = true ]; then  # -vv
-         note "$( ls -al )"
+         note "$( ls -ltaT )"
       fi
 
          # TODO: [10:47] by Roman
@@ -3031,7 +3130,7 @@ EOD
 fi  # USE_VAULT
 
 
-#### TODO: 34. Put secret in Hashicorp Vault
+#### TODO: 37. Put secret in Hashicorp Vault
 # See https://wilsonmar.github.io/mac-setup/#PutInHashiVault
 if [ "${VAULT_PUT}" = true ]; then  # -n
 
@@ -3060,7 +3159,7 @@ fi  # USE_VAULT
 
 
 
-### 35. Install NodeJs
+### 38. Install NodeJs
 # See https://wilsonmar.github.io/mac-setup/#InstallNode
 if [ "${NODE_INSTALL}" = true ]; then  # -js
 
@@ -3094,12 +3193,12 @@ if [ "${NODE_INSTALL}" = true ]; then  # -js
       ls -1
 
       if [ "${CLONE_GITHUB}" = true ]; then   # -clone specified:
-   
-         h2 "npm install ..."
-             npm install   # based on properties.json
-
-         h2 "npm audit fix ..."
-             npm audit fix
+         if [ -f "properties.json " ]; then
+            note "npm install ..."
+               npm install   # based on properties.json
+            note "npm audit fix ..."
+               npm audit fix
+         fi
       fi
    fi
 
@@ -3213,7 +3312,7 @@ fi # if [ "${NODE_INSTALL}
 
 
 
-### 36. Install Virtualenv
+### 39. Install Virtualenv
 # See https://wilsonmar.github.io/mac-setup/#Virtualenv
 # See https://wilsonmar.github.io/pyenv/
 if [ "${RUN_VIRTUALENV}" = true ]; then  # -V  (not the default pipenv)
@@ -3265,7 +3364,7 @@ if [ "${RUN_VIRTUALENV}" = true ]; then  # -V  (not the default pipenv)
 fi   # RUN_VIRTUALENV means Pipenv default
 
 
-### 37. Configure Pyenv with virtualenv
+### 40. Configure Pyenv with virtualenv
 # See https://wilsonmar.github.io/mac-setup/#VirtualPyenv
 if [ "${USE_PYENV}" = true ]; then  # -pyenv
 
@@ -3317,7 +3416,7 @@ if [ "${USE_PYENV}" = true ]; then  # -pyenv
 fi    # USE_PYENV
 
 
-### 38. Install MiniConda (Anaconda has too many unknown vulnerabilities)
+### 41. Install MiniConda (Anaconda has too many unknown vulnerabilities)
 # See https://wilsonmar.github.io/mac-setup/#Conda
 # See https://betterprogramming.pub/how-to-use-miniconda-with-python-and-jupyterlab-5ce07845e818
 if [ "${RUN_CONDA}" = true ]; then  # -conda
@@ -3401,7 +3500,7 @@ if [ "${RUN_CONDA}" = true ]; then  # -conda
 fi  # RUN_CONDA
 
 
-### 39. RUN_GOLANG  
+### 42. RUN_GOLANG  
 # See https://wilsonmar.github.io/golang
 # See https://wilsonmar.github.io/mac-setup/#Golang
 if [ "${RUN_GOLANG}" = true ]; then  # -Golang
@@ -3469,7 +3568,7 @@ fi   # RUN_GOLANG
 
 
 
-### 40. Install Python
+### 43. Install Python
 # See https://wilsonmar.github.io/mac-setup/#InstallPython
 if [ "${RUN_PYTHON}" = true ]; then  # -python
 
@@ -3545,6 +3644,7 @@ if [ "${RUN_PYTHON}" = true ]; then  # -python
          h2 "Upgrading flake8 ..."
          python3 -m pip install flake8 --upgrade
       fi
+   # pip
    fi
 
    h2 "Running flake8 Pip8 code formatting scanner on ${MY_FILE} ..."
@@ -3619,7 +3719,7 @@ if [ "${RUN_PYTHON}" = true ]; then  # -python
 fi  # RUN_PYTHON
 
 
-### 41. RUN_TERRAFORM
+### 44. RUN_TERRAFORM
 # See https://wilsonmar.github.io/mac-setup/#Terraform
 if [ "${RUN_TERRAFORM}" = true ]; then  # -tf
    if [ "${SET_TRACE}" = true ]; then   # -x
@@ -3654,7 +3754,7 @@ echo "DEBUGGING TF"; exit
 fi    # RUN_TERRAFORM
 
 
-### 42. RUN_TENSORFLOW
+### 45. RUN_TENSORFLOW
 # See https://wilsonmar.github.io/mac-setup/#Tensorflow
 if [ "${RUN_TENSORFLOW}" = true ]; then  # -tsf
 
@@ -3665,7 +3765,7 @@ if [ "${RUN_TENSORFLOW}" = true ]; then  # -tsf
          # RESPONSE: Signing notebook: section_2/2-3.ipynb
       else
          echo "$PWD/${MY_FOLDER}/${MY_FILE} not found among ..."
-         ls   "$PWD/${MY_FOLDER}"
+         ls -ltaT "$PWD/${MY_FOLDER}"
          exit 9
       fi
 
@@ -3707,7 +3807,7 @@ if [ "${RUN_TENSORFLOW}" = true ]; then  # -tsf
 fi  # if [ "${RUN_TENSORFLOW}"
 
 
-#### 43. Finish RUN_VIRTUALENV
+#### 46. Finish RUN_VIRTUALENV
 # See https://wilsonmar.github.io/mac-setup/#RunVirtualenv
 if [ "${RUN_VIRTUALENV}" = true ]; then  # -V
       h2 "Execute deactivate if the function exists (i.e. has been created by sourcing activate):"
@@ -3718,7 +3818,7 @@ if [ "${RUN_VIRTUALENV}" = true ]; then  # -V
 fi
 
 
-#### 44. USE_TEST_SERVER
+#### 47. USE_TEST_SERVER
 # See https://wilsonmar.github.io/mac-setup/#Testenv
 if [ "${USE_TEST_SERVER}" = true ]; then  # -t
 
@@ -3762,7 +3862,7 @@ if [ "${USE_TEST_SERVER}" = true ]; then  # -t
 fi # if [ "${USE_TEST_SERVER}"
 
 
-### 45. RUBY_INSTALL
+### 48. RUBY_INSTALL
 # See https://wilsonmar.github.io/mac-setup/#InstallRuby
 if [ "${RUBY_INSTALL}" = true ]; then  # -ruby
 
@@ -4014,7 +4114,7 @@ if [ "${RUBY_INSTALL}" = true ]; then  # -ruby
 fi # RUBY_INSTALL
 
 
-### 46. RUN_EGGPLANT
+### 49. RUN_EGGPLANT
 # See https://wilsonmar.github.io/mac-setup/#Eggplant
 if [ "${RUN_EGGPLANT}" = true ]; then  # -eggplant
 
@@ -4076,7 +4176,7 @@ if [ "${RUN_EGGPLANT}" = true ]; then  # -eggplant
 fi    # RUN_EGGPLANT
 
 
-### 4x. 
+### 50. Podman 
 if [ "${USE_QEMU}" = true ]; then   # -qemu
    RESPONSE="$(podman ps -a)"
    if [[ "${RESPONSE}" == *"${/bin/qemu-system-aarch64}"* ]]; then  # contains it:
@@ -4087,7 +4187,7 @@ if [ "${USE_QEMU}" = true ]; then   # -qemu
 fi  # USE_PODMAN
 
 
-### 47. USE_DOCKER or USE_PODMAN (from RedHat, instead of Docker)
+### 51. USE_DOCKER or USE_PODMAN (from RedHat, instead of Docker)
 # See https://wilsonmar.github.io/mac-setup/#UseDocker
 
    #if [ ! -f "docker-compose.override.yml" ]; then
@@ -4470,7 +4570,7 @@ if [ "${USE_DOCKER}" = true ]; then   # -k
       fi  # MY_FOLDER
 
 
-   ### 49a. Docker RUN_CONSUL
+   ### 52. Docker RUN_CONSUL
    if [ "${RUN_CONSUL}" = true ]; then  # -Consul
 
       # See https://learn.hashicorp.com/tutorials/consul/docker-container-agents 
@@ -4523,10 +4623,6 @@ if [ "${USE_DOCKER}" = true ]; then   # -k
          # You have to remove (or rename) that container to be able to reuse that name.
       export CONSUL_SERVER_NODE1_IP="172.17.0.2"
 
-echo "DEBUGGING";exit
-
-
-
       # Run Consul Client to the Server IP:
       note "docker run client node ${CONSUL_CLIENT_NODE1_NAME} ... "
       docker run --name="${CONSUL_CLIENT_NODE1_NAME}" \
@@ -4576,9 +4672,8 @@ echo "DEBUGGING";exit
 
    fi
 
-echo "DEBUGGING 2";exit
 
-   ### 49b. Docker RUN_EGGPLANT or container
+   ### 53. Docker RUN_EGGPLANT or container
    if [ "${RUN_EGGPLANT}" = true ]; then  # -O
       # Connect target browser to Eggplant license server: 
       if [ -z "${EGGPLANT_USERNAME}" ]; then
@@ -4671,7 +4766,7 @@ echo "DEBUGGING 2";exit
 fi  # USE_DOCKER
 
 
-### 49. UPDATE_GITHUB
+### 54. UPDATE_GITHUB
 # See https://wilsonmar.github.io/mac-setup/#UpdateGitHub
 # Alternative: https://github.com/anshumanbh/git-all-secrets
 if [ "${UPDATE_GITHUB}" = true ]; then  # -u
@@ -4721,7 +4816,7 @@ if [ "${UPDATE_GITHUB}" = true ]; then  # -u
 fi   # UPDATE_GITHUB
 
 
-### 50. REMOVE_GITHUB_AFTER folder after run
+### 55. REMOVE_GITHUB_AFTER folder after run
 # See https://wilsonmar.github.io/mac-setup/#RemoveGitHub
 if [ "$REMOVE_GITHUB_AFTER" = true ]; then  # -C
    h2 "Delete cloned GitHub at end ..."
@@ -4737,7 +4832,7 @@ if [ "$REMOVE_GITHUB_AFTER" = true ]; then  # -C
 fi
 
 
-### 51. KEEP_PROCESSES after run
+### 56. KEEP_PROCESSES after run
 # See https://wilsonmar.github.io/mac-setup/#KeepPS
 if [ "${KEEP_PROCESSES}" = false ]; then  # -K
 
@@ -4764,7 +4859,7 @@ if [ "${USE_DOCKER}" = true ]; then   # -k
    fi
 
 
-   ### 52. Delete Docker containers in memory after run ...
+   ### 57. Delete Docker containers in memory after run ...
    # See https://wilsonmar.github.io/mac-setup/#DeleteDocker
    if [ "$DELETE_CONTAINER_AFTER" = true ]; then  # -D
 
@@ -4803,7 +4898,7 @@ if [ "${USE_DOCKER}" = true ]; then   # -k
    fi
 
 
-   ### 53. REMOVE_DOCKER_IMAGES downloaded
+   ### 58. REMOVE_DOCKER_IMAGES downloaded
    # See https://wilsonmar.github.io/mac-setup/#RemoveImages
    if [ "${REMOVE_DOCKER_IMAGES}" = true ]; then  # -M
 
@@ -4836,7 +4931,7 @@ if [ "${USE_DOCKER}" = true ]; then   # -k
 fi    # USE_DOCKER
 
 
-### 54. Report Timings
+### 59. Report Timings
 # See https://wilsonmar.github.io/mac-setup/#ReportTimings
 
 
